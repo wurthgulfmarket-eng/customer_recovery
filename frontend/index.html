@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customer Recovery Tracking App</title>
+
+    <!-- External Libraries (via CDN for single-file convenience) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+    <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.1/jspdf.autotable.min.js"></script>
+
+    <style>
+        :root {
+            --primary-color: #4f46e5; --primary-hover: #4338ca; --secondary-color: #64748b;
+            --bg-color: #f1f5f9; --sidebar-bg: #1e293b; --sidebar-text: #94a3b8;
+            --sidebar-text-hover: #ffffff; --card-bg: #ffffff; --text-color: #334155;
+            --heading-color: #1e293b; --border-color: #e2e8f0;
+            --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+            --success-color: #10b981; --warning-color: #f59e0b; --danger-color: #ef4444; --info-color: #3b82f6;
+            --border-radius: 0.5rem; --font-family: 'Inter', sans-serif;
+            --action-btn-view: #5D5FEF; --action-btn-edit: #5D5FEF;
+            --action-btn-schedule: #28a745; --action-btn-delete: #dc3545;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html { font-size: 16px; }
+        body {
+            font-family: var(--font-family); background-color: var(--bg-color); color: var(--text-color);
+            display: flex; height: 100vh; overflow: hidden;
+            -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+        }
+        h1 { font-size: 2.25rem; margin-bottom: 1.5rem; font-weight: 700; color: var(--heading-color); }
+        .sidebar {
+            width: 260px; background-color: var(--sidebar-bg); color: var(--sidebar-text);
+            padding: 1.5rem 0; display: flex; flex-direction: column; transition: width 0.3s ease; border-right: 1px solid #334155;
+        }
+        .sidebar-header { text-align: center; padding: 0 1.5rem 1.5rem; }
+        .sidebar-header h2 { color: var(--sidebar-text-hover); font-size: 1.5rem; font-weight: 600; }
+        .sidebar-header i { margin-right: 0.75rem; color: var(--primary-color); }
+        .nav-menu { list-style: none; flex-grow: 1; margin-top: 1rem; padding: 0 1rem; }
+        .nav-item a {
+            display: flex; align-items: center; padding: 0.75rem 1rem; margin-bottom: 0.5rem;
+            text-decoration: none; color: var(--sidebar-text); border-radius: var(--border-radius);
+            transition: background-color 0.2s, color 0.2s; font-weight: 500;
+        }
+        .nav-item a:hover { background-color: #334155; color: var(--sidebar-text-hover); }
+        .nav-item a.active { background-color: var(--primary-color); color: #fff; font-weight: 600; box-shadow: var(--shadow); }
+        .nav-item a i { width: 25px; text-align: center; margin-right: 1rem; font-size: 1.1rem; }
+        .main-content { flex-grow: 1; padding: 2rem; overflow-y: auto; }
+        .page { display: none; animation: fadeIn 0.5s ease-in-out; }
+        .page.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .card { background-color: var(--card-bg); border-radius: var(--border-radius); box-shadow: var(--shadow); padding: 1.5rem; margin-bottom: 1.5rem; }
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border-color); }
+        .card-header .actions { display: flex; gap: 0.75rem; }
+        .card-header h3 { font-size: 1.25rem; font-weight: 600; color: var(--heading-color); }
+        .btn {
+            padding: 0.65rem 1.25rem; border: none; border-radius: var(--border-radius); cursor: pointer;
+            font-size: 0.9rem; font-weight: 600; transition: all 0.2s; display: inline-flex;
+            align-items: center; gap: 0.5rem;
+        }
+        .btn:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+        .btn:active { transform: translateY(0); box-shadow: var(--shadow); }
+        .btn-primary { background-color: var(--primary-color); color: #fff; }
+        .btn-primary:hover { background-color: var(--primary-hover); }
+        .btn-danger { background-color: var(--danger-color); color: #fff; }
+        .btn-danger:hover { background-color: #dc2626; }
+        .btn-secondary { background-color: var(--secondary-color); color: #fff; }
+        .btn-secondary:hover { background-color: #475569; }
+
+        .status-badge, .priority-badge { padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+        .status-active { background-color: #d1fae5; color: #065f46; }
+        .status-on-hold { background-color: #fef3c7; color: #92400e; }
+        .status-closed { background-color: #e5e7eb; color: #4b5563; }
+        .priority-high { background-color: #fee2e2; color: #991b1b; }
+        .priority-medium { background-color: #fef3c7; color: #92400e; }
+        .priority-low { background-color: #dcfce7; color: #166534; }
+        .payment-paid { color: var(--success-color); font-weight: 600; }
+        .payment-pending { color: var(--warning-color); font-weight: 600; }
+        .payment-overdue { color: var(--danger-color); font-weight: 600; }
+
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
+        .stat-card {
+            background: var(--card-bg); padding: 1.5rem; border-radius: var(--border-radius); box-shadow: var(--shadow);
+            display: flex; align-items: center; border-left: 5px solid transparent; transition: all 0.2s ease;
+        }
+        .stat-card:hover { transform: translateY(-5px); box-shadow: var(--shadow-lg); }
+        .stat-card:nth-child(1) { border-color: var(--primary-color); } .stat-card:nth-child(2) { border-color: var(--danger-color); }
+        .stat-card:nth-child(3) { border-color: var(--success-color); } .stat-card:nth-child(4) { border-color: var(--info-color); }
+        .stat-card .icon { font-size: 2rem; padding: 0.75rem; border-radius: 50%; margin-right: 1rem; color: #fff; }
+        .stat-card .info h4 { font-size: 0.9rem; font-weight: 500; color: var(--secondary-color); margin-bottom: 0.25rem; }
+        .stat-card .info p { font-size: 1.75rem; font-weight: 700; color: var(--heading-color); }
+        .charts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem; }
+        
+        .filter-bar { display: flex; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+        .filter-bar input, .filter-bar select {
+            padding: 0.75rem 1rem; border: 1px solid var(--border-color); border-radius: var(--border-radius);
+            flex-grow: 1; font-size: 1rem; transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .filter-bar input:focus, .filter-bar select:focus { outline: none; border-color: var(--primary-color); box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2); }
+        
+        .customer-table { width: 100%; border-collapse: collapse; }
+        .customer-table th, .customer-table td { padding: 1rem; text-align: left; border-bottom: 1px solid var(--border-color); }
+        .customer-table thead { background-color: #f8fafc; }
+        .customer-table th { font-weight: 600; color: var(--secondary-color); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; cursor: pointer; user-select: none; }
+        .customer-table th:hover { color: var(--heading-color); }
+        .customer-table th .sort-icon { margin-left: 0.5rem; color: #94a3b8; }
+        .customer-table tbody tr { transition: background-color 0.2s; }
+        .customer-table tbody tr:hover { background-color: #f8fafc; }
+        
+        .action-buttons { display: flex; gap: 0.5rem; }
+        .action-btn {
+            border: none; border-radius: 0.5rem; width: 40px; height: 40px; color: #fff;
+            display: inline-flex; justify-content: center; align-items: center;
+            font-size: 1rem; cursor: pointer; transition: all 0.2s;
+        }
+        .action-btn:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+        .action-btn.view-btn, .action-btn.edit-btn { background-color: var(--action-btn-view); }
+        .action-btn.schedule-btn { background-color: var(--action-btn-schedule); }
+        .action-btn.delete-btn { background-color: var(--action-btn-delete); }
+        
+        .empty-state { text-align: center; padding: 3rem; color: var(--secondary-color); }
+        .empty-state i { font-size: 3rem; margin-bottom: 1rem; display: block; }
+
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.6); align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+        .modal.active { display: flex; animation: fadeIn 0.3s; }
+        .modal-content { background-color: #fefefe; margin: auto; padding: 2rem; border-radius: var(--border-radius); box-shadow: var(--shadow-lg); width: 90%; max-width: 800px; animation: slideIn 0.3s; }
+        .modal-content.small { max-width: 500px; }
+        @keyframes slideIn { from { transform: translateY(-30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 1rem; margin-bottom: 1.5rem; }
+        .modal-header h2 { color: var(--heading-color); font-weight: 600; }
+        .close-btn { color: #9ca3af; font-size: 24px; font-weight: bold; cursor: pointer; background: #f3f4f6; border-radius: 50%; width: 32px; height: 32px; display: flex; justify-content: center; align-items: center; transition: all 0.2s; }
+        .close-btn:hover { color: var(--heading-color); background: #e5e7eb; transform: rotate(90deg); }
+        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem; }
+        .form-group label { display: block; margin-bottom: 0.5rem; font-weight: 500; }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 0.75rem 1rem; border: 1px solid var(--border-color); border-radius: var(--border-radius); font-size: 1rem; transition: border-color 0.2s, box-shadow 0.2s; font-family: inherit; }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: var(--primary-color); box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2); }
+        .form-group textarea { resize: vertical; }
+        .modal-footer { margin-top: 2rem; text-align: right; border-top: 1px solid var(--border-color); padding-top: 1.5rem; display: flex; justify-content: flex-end; gap: 0.75rem; }
+        
+        #customerDetailModal .modal-content { max-width: 900px; }
+        .detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+        .detail-item { background: #f8fafc; padding: 1rem; border-radius: var(--border-radius); border: 1px solid var(--border-color); }
+        .detail-item strong { display: block; color: var(--secondary-color); font-size: 0.8rem; margin-bottom: 0.25rem; font-weight: 500; }
+        .detail-item span { font-weight: 600; font-size: 1rem; }
+        #notes-history { max-height: 250px; overflow-y: auto; border: 1px solid var(--border-color); padding: 1rem; border-radius: var(--border-radius); margin-bottom: 1.5rem; background: #f8fafc; }
+        .note-item { padding-bottom: 1rem; margin-bottom: 1rem; border-bottom: 1px dashed #d1d5db; } .note-item:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+        .note-meta { font-size: 0.8rem; color: var(--secondary-color); margin-bottom: 0.5rem; }
+        .note-content p, .note-content { margin: 0; line-height: 1.6; }
+        #note-editor-container { height: 150px; border-radius: var(--border-radius); }
+        .ql-toolbar { border-top-left-radius: var(--border-radius); border-top-right-radius: var(--border-radius); }
+        .ql-container { border-bottom-left-radius: var(--border-radius); border-bottom-right-radius: var(--border-radius); }
+
+        #calendar { height: 65vh; --fc-border-color: var(--border-color); --fc-today-bg-color: rgba(79, 70, 229, 0.1); --fc-event-bg-color: var(--primary-color); --fc-event-border-color: var(--primary-color); }
+        .fc-event { cursor: pointer; font-weight: 500; }
+        
+        #toast-container { position: fixed; top: 20px; right: 20px; z-index: 2000; }
+        .toast {
+            background-color: #fff; color: var(--text-color); padding: 1rem 1.5rem;
+            border-radius: var(--border-radius); box-shadow: var(--shadow-lg); display: flex;
+            align-items: center; gap: 1rem; margin-bottom: 1rem; border-left: 5px solid;
+            transform: translateX(120%); animation: slideInToast 0.5s forwards, fadeOutToast 0.5s 4s forwards;
+        }
+        .toast-success { border-color: var(--success-color); } .toast-success .toast-icon { color: var(--success-color); }
+        .toast-error { border-color: var(--danger-color); } .toast-error .toast-icon { color: var(--danger-color); }
+        .toast-icon { font-size: 1.5rem; }
+        @keyframes slideInToast { from { transform: translateX(120%); } to { transform: translateX(0); } }
+        @keyframes fadeOutToast { from { opacity: 1; } to { opacity: 0; transform: translateX(120%); } }
+
+        .sidebar-footer { padding: 1rem; border-top: 1px solid #334155; }
+        .user-mode-toggle { display: flex; align-items: center; justify-content: space-between; color: var(--sidebar-text); }
+        .switch { position: relative; display: inline-block; width: 44px; height: 24px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #4b5563; transition: .4s; border-radius: 34px; }
+        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--primary-color); }
+        input:checked + .slider:before { transform: translateX(20px); }
+        
+        body.user-mode-active .admin-only { display: none !important; }
+
+        .visits-filter-bar { display: flex; justify-content: space-between; align-items: center; gap: 1.5rem; margin-bottom: 1.5rem; flex-wrap: wrap; padding-bottom: 1rem; border-bottom: 1px solid var(--border-color); }
+        .quick-filters { display: flex; gap: 0.5rem; flex-wrap: wrap;}
+        .date-range-filters { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;}
+        .date-range-filters input { padding: 0.5rem 0.75rem; font-size: 0.9rem; border: 1px solid var(--border-color); border-radius: var(--border-radius); }
+        .btn.btn-sm { padding: 0.5rem 1rem; font-size: 0.8rem; }
+        .quick-filters .btn.active { background-color: var(--primary-color); color: #fff; box-shadow: var(--shadow); }
+        .quick-filters .btn:not(.active) { background-color: #e2e8f0; color: var(--text-color); }
+        .quick-filters .btn:not(.active):hover { background-color: #cbd5e1; transform: translateY(-1px); box-shadow: none; }
+        .visit-row.overdue td:first-child { color: var(--danger-color); font-weight: 600; }
+        .visit-row.today td:first-child { color: var(--info-color); font-weight: 600; }
+        
+        #bulk-add-instructions { font-size: 0.9rem; color: var(--secondary-color); background-color: #f8fafc; padding: 1rem; border-radius: var(--border-radius); margin-top: 1.5rem; }
+        #bulk-add-instructions code { background-color: #e2e8f0; padding: 0.2rem 0.4rem; border-radius: 0.25rem; font-family: monospace; word-break: break-all; }
+        #download-sample-csv { color: var(--primary-color); text-decoration: none; font-weight: 600; }
+        #download-sample-csv:hover { text-decoration: underline; }
+        #bulk-add-form .form-group { margin-bottom: 1rem; }
+
+
+        @media (max-width: 768px) {
+            body { flex-direction: column; }
+            .sidebar { width: 100%; height: auto; flex-direction: row; justify-content: space-around; padding: 0.5rem 0; box-shadow: var(--shadow); z-index: 10; }
+            .sidebar-header, .sidebar-footer { display: none; }
+            .nav-menu { display: flex; flex-direction: row; margin-top: 0; width: 100%; justify-content: space-around; padding: 0; }
+            .nav-item a { padding: 0.75rem; margin-bottom: 0; } .nav-item a span { display: none; } .nav-item a i { margin-right: 0; }
+            .main-content { padding: 1rem; }
+            .filter-bar, .visits-filter-bar { flex-direction: column; align-items: stretch; }
+            .charts-grid, .stats-grid, .detail-grid, .form-grid { grid-template-columns: 1fr; }
+            .modal-content { width: 95%; padding: 1.5rem; }
+            h1 { font-size: 1.75rem; }
+        }
+    </style>
+</head>
+<body>
+    
+    <div id="toast-container"></div>
+
+    <nav class="sidebar">
+        <div class="sidebar-header"><h2><i class="fas fa-hand-holding-dollar"></i>Recovery App</h2></div>
+        <ul class="nav-menu">
+            <li class="nav-item"><a href="#dashboard" class="nav-link active"><i class="fas fa-tachometer-alt"></i><span>Dashboard</span></a></li>
+            <li class="nav-item"><a href="#customers" class="nav-link"><i class="fas fa-users"></i><span>Customers</span></a></li>
+            <li class="nav-item"><a href="#visits" class="nav-link"><i class="fas fa-calendar-days"></i><span>Visits</span></a></li>
+            <li class="nav-item admin-only"><a href="#analytics" class="nav-link"><i class="fas fa-chart-line"></i><span>Analytics</span></a></li>
+            <li class="nav-item"><a href="#reports" class="nav-link"><i class="fas fa-file-invoice"></i><span>Reports</span></a></li>
+        </ul>
+        <div class="sidebar-footer">
+            <div class="user-mode-toggle">
+                <span>Admin Mode</span>
+                <label class="switch">
+                    <input type="checkbox" id="user-mode-switch" checked>
+                    <span class="slider"></span>
+                </label>
+            </div>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        <div id="dashboard-page" class="page active">
+            <h1>Dashboard</h1>
+            <div class="stats-grid">
+                <div class="stat-card"><div class="icon" style="background-color: var(--primary-color);"><i class="fas fa-users"></i></div><div class="info"><h4>Total Customers</h4><p id="total-customers-stat">0</p></div></div>
+                <div class="stat-card"><div class="icon" style="background-color: var(--danger-color);"><i class="fas fa-file-invoice-dollar"></i></div><div class="info"><h4>Total Outstanding</h4><p id="total-outstanding-stat">AED 0</p></div></div>
+                <div class="stat-card"><div class="icon" style="background-color: var(--success-color);"><i class="fas fa-check-circle"></i></div><div class="info"><h4>Active Accounts</h4><p id="active-accounts-stat">0</p></div></div>
+                <div class="stat-card"><div class="icon" style="background-color: var(--info-color);"><i class="fas fa-calendar-check"></i></div><div class="info"><h4>Visits This Month</h4><p id="visits-month-stat">0</p></div></div>
+            </div>
+            <div class="charts-grid">
+                <div class="card"><div class="card-header"><h3>Outstanding by Emirate</h3></div><canvas id="outstandingByEmirateChart"></canvas></div>
+                <div class="card"><div class="card-header"><h3>Customer Classification</h3></div><canvas id="customerStatusChart" style="max-height: 300px; margin: auto;"></canvas></div>
+            </div>
+        </div>
+
+        <div id="customers-page" class="page">
+            <div class="card">
+                <div class="card-header">
+                    <h3>Customer Management</h3>
+                    <div class="actions">
+                        <button class="btn btn-secondary" id="bulk-add-btn"><i class="fas fa-upload"></i> Bulk Add</button>
+                        <button class="btn btn-primary" id="add-customer-btn"><i class="fas fa-plus"></i> Add Customer</button>
+                    </div>
+                </div>
+                <div class="filter-bar">
+                    <input type="text" id="search-input" placeholder="Search by Name, Emirate, etc...">
+                    <select id="status-filter">
+                        <option value="">All Statuses</option>
+                        <option value="Active">Active</option>
+                        <option value="On Hold">On Hold</option>
+                        <option value="Closed">Closed</option>
+                        <option value="Priority">Priority Customers</option>
+                    </select>
+                </div>
+                <div style="overflow-x: auto;">
+                    <table class="customer-table">
+                        <thead>
+                            <tr>
+                                <th data-sort="accountNumber">Account #<i class="fas fa-sort sort-icon"></i></th>
+                                <th data-sort="companyName">Company Name<i class="fas fa-sort sort-icon"></i></th>
+                                <th data-sort="emirate">Emirate<i class="fas fa-sort sort-icon"></i></th>
+                                <th data-sort="outstandingAmount">Outstanding<i class="fas fa-sort sort-icon"></i></th>
+                                <th data-sort="priorityScore">Priority<i class="fas fa-sort sort-icon"></i></th>
+                                <th data-sort="status">Status<i class="fas fa-sort sort-icon"></i></th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="customer-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <div id="visits-page" class="page">
+            <div class="card"><div id="calendar"></div></div>
+            <div class="card">
+                <div class="card-header"><h3 id="visit-list-title">Upcoming Visits</h3></div>
+                <div class="visits-filter-bar">
+                    <div class="quick-filters">
+                        <button class="btn btn-sm" data-filter="overdue">Overdue</button>
+                        <button class="btn btn-sm" data-filter="today">Today</button>
+                        <button class="btn btn-sm active" data-filter="upcoming">Upcoming</button>
+                        <button class="btn btn-sm" data-filter="all">All Visits</button>
+                    </div>
+                    <div class="date-range-filters">
+                        <input type="date" id="visit-start-date" title="Start Date">
+                        <input type="date" id="visit-end-date" title="End Date">
+                        <button id="apply-date-filter-btn" class="btn btn-sm btn-primary">Apply Range</button>
+                    </div>
+                </div>
+                <div style="overflow-x: auto;">
+                    <table class="customer-table">
+                        <thead><tr><th>Date</th><th>Company Name</th><th>Emirate</th><th>Sales Consultant</th><th>Actions</th></tr></thead>
+                        <tbody id="visit-list-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <div id="analytics-page" class="page admin-only">
+            <h1>Analytics</h1>
+            <div class="stats-grid">
+                <div class="stat-card" style="border-color: var(--success-color);"><div class="icon" style="background-color: var(--success-color);"><i class="fas fa-piggy-bank"></i></div><div class="info"><h4>Total Recovered</h4><p id="total-recovered-stat">AED 0</p></div></div>
+                <div class="stat-card" style="border-color: var(--info-color);"><div class="icon" style="background-color: var(--info-color);"><i class="fas fa-chart-pie"></i></div><div class="info"><h4>Recovery Rate</h4><p id="recovery-rate-stat">0%</p></div></div>
+                <div class="stat-card" style="border-color: var(--warning-color);"><div class="icon" style="background-color: var(--warning-color);"><i class="fas fa-user-tie"></i></div><div class="info"><h4>Top Sales Consultant</h4><p id="top-consultant-stat">N/A</p></div></div>
+            </div>
+            <div class="charts-grid">
+                <div class="card"><div class="card-header"><h3>Recovery Performance (YTD)</h3></div><canvas id="recoveryPerformanceChart"></canvas></div>
+                <div class="card"><div class="card-header"><h3>Customers by Payment Status</h3></div><canvas id="paymentStatusChart"></canvas></div>
+            </div>
+            <div class="card"><div class="card-header"><h3>Sales Consultant Workload (Outstanding Amount)</h3></div><canvas id="consultantWorkloadChart"></canvas></div>
+        </div>
+
+        <div id="reports-page" class="page">
+             <div class="card">
+                <div class="card-header"><h3>Generate Reports</h3></div>
+                <div class="filter-bar">
+                    <select id="report-status-filter"><option value="">All Statuses</option><option value="Active">Active</option><option value="On Hold">On Hold</option><option value="Closed">Closed</option></select>
+                     <select id="report-payment-status-filter"><option value="">All Payment Statuses</option><option value="Paid">Paid</option><option value="Pending">Pending</option><option value="Overdue">Overdue</option></select>
+                    <input type="text" id="report-consultant-filter" placeholder="Filter by Sales Consultant...">
+                </div>
+                <div class="report-actions">
+                     <button id="generate-report-btn" class="btn btn-primary"><i class="fas fa-cogs"></i> Generate</button>
+                     <button id="export-csv-btn" class="btn btn-secondary" style="display:none;"><i class="fas fa-file-csv"></i> Export CSV</button>
+                     <button id="export-pdf-btn" class="btn btn-secondary" style="display:none;"><i class="fas fa-file-pdf"></i> Export PDF</button>
+                </div>
+                <div id="report-output" style="margin-top: 20px;"><p>Select filters and click "Generate" to see results.</p></div>
+             </div>
+        </div>
+    </main>
+
+    <div id="customerModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header"><h2 id="modal-title">Add New Customer</h2><span class="close-btn">&times;</span></div>
+            <form id="customer-form">
+                <input type="hidden" id="customer-id">
+                <div class="form-grid">
+                    <div class="form-group"><label for="account-number">Account Number</label><input type="text" id="account-number" required></div>
+                    <div class="form-group"><label for="company-name">Company Name</label><input type="text" id="company-name" required></div>
+                    <div class="form-group"><label for="emirate">Emirate</label><input list="emirates-list" type="text" id="emirate" required></div>
+                    <div class="form-group"><label for="area">Area</label><input type="text" id="area" required></div>
+                    <div class="form-group"><label for="status">Status</label><select id="status" required><option value="Active">Active</option><option value="On Hold">On Hold</option><option value="Closed">Closed</option></select></div>
+                    <div class="form-group"><label for="payment-status">Payment Status</label><select id="payment-status" required><option value="Paid">Paid</option><option value="Pending">Pending</option><option value="Overdue">Overdue</option></select></div>
+                    <div class="form-group"><label for="outstanding-amount">Outstanding Amount (AED)</label><input type="number" id="outstanding-amount" step="0.01" required></div>
+                    <div class="form-group"><label for="sales-consultant">Sales Consultant</label><input list="consultants-list" type="text" id="sales-consultant" required></div>
+                </div>
+                <div class="modal-footer"><button type="button" class="btn btn-secondary close-btn">Cancel</button><button type="submit" class="btn btn-primary">Save Customer</button></div>
+            </form>
+            <datalist id="emirates-list"></datalist>
+            <datalist id="consultants-list"></datalist>
+        </div>
+    </div>
+
+    <!-- Bulk Add Modal -->
+    <div id="bulkAddModal" class="modal">
+        <div class="modal-content small">
+            <div class="modal-header"><h2 id="bulk-modal-title">Bulk Add Customers via CSV</h2><span class="close-btn">&times;</span></div>
+            <form id="bulk-add-form">
+                <div class="form-group">
+                    <label for="csv-file-input">Upload CSV File</label>
+                    <input type="file" id="csv-file-input" accept=".csv" required>
+                </div>
+                <div id="bulk-add-instructions">
+                    <p>Ensure your CSV file has the correct headers:</p>
+                    <code>accountNumber,companyName,emirate,area,status,paymentStatus,outstandingAmount,salesConsultant</code>
+                    <p style="margin-top: 0.5rem;"><a href="#" id="download-sample-csv"><i class="fas fa-download"></i> Download Sample Template</a></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary close-btn">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Upload & Process</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="customerDetailModal" class="modal">
+        <div class="modal-content">
+             <div class="modal-header"><h2 id="detail-modal-title">Customer Details</h2><span class="close-btn">&times;</span></div>
+             <div id="detail-content">
+                <div class="detail-grid">
+                    <div class="detail-item"><strong>Account #:</strong> <span id="detail-account-number"></span></div>
+                    <div class="detail-item"><strong>Location:</strong> <span id="detail-location"></span></div>
+                    <div class="detail-item"><strong>Status:</strong> <span id="detail-status"></span></div>
+                    <div class="detail-item"><strong>Payment Status:</strong> <span id="detail-payment-status"></span></div>
+                    <div class="detail-item"><strong>Outstanding:</strong> <span id="detail-outstanding"></span></div>
+                    <div class="detail-item"><strong>Sales Consultant:</strong> <span id="detail-consultant"></span></div>
+                </div>
+                <div class="notes-section">
+                    <h4>Visit Notes History</h4><div id="notes-history"></div>
+                    <h4>Add New Visit Note / Schedule Visit</h4><div id="note-editor-container"></div>
+                    <div class="form-grid" style="margin-top: 1.5rem;"><div class="form-group"><label for="scheduled-visit-date">Schedule Next Visit</label><input type="date" id="scheduled-visit-date"></div></div>
+                </div>
+            </div>
+            <div class="modal-footer"><button type="button" class="btn btn-secondary close-btn">Close</button><button type="button" id="save-note-btn" class="btn btn-primary">Save Note & Schedule</button></div>
+        </div>
+    </div>
+    
+    <!-- Quick Schedule Modal -->
+    <div id="scheduleVisitModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header"><h2 id="schedule-modal-title">Schedule Visit</h2><span class="close-btn">&times;</span></div>
+            <form id="schedule-visit-form">
+                <input type="hidden" id="schedule-customer-id">
+                <div class="form-group">
+                    <label for="quick-schedule-date">Select Visit Date</label>
+                    <input type="date" id="quick-schedule-date" required>
+                </div>
+                <div class="form-group">
+                    <label for="quick-visit-notes">Visit Notes (Optional)</label>
+                    <textarea id="quick-visit-notes" rows="4" placeholder="Add any notes for this visit..."></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary close-btn">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Visit & Notes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        let customers = []; let currentEditingId = null; let noteEditor; let calendar; let chartInstances = {};
+        const UI_COLORS = { primary: '#4f46e5', info: '#3b82f6', success: '#10b981', warning: '#f59e0b', danger: '#ef4444' };
+        let sortConfig = { key: 'priorityScore', direction: 'desc' };
+        let currentVisitFilter = 'upcoming';
+
+        const sampleData = [
+            { id: 'c1', accountNumber: 'DXB-001', companyName: 'Emaar Properties', emirate: 'Dubai', area: 'Downtown Dubai', status: 'Active', paymentStatus: 'Pending', outstandingAmount: 250000, recoveredAmount: 0, salesConsultant: 'Ahmed Al-Mansoori', notes: [], scheduledVisits: [new Date(Date.now() - 86400000 * 3).toISOString().split('T')[0], new Date(Date.now() + 86400000 * 5).toISOString().split('T')[0]], dateAdded: '2024-01-15T10:00:00Z', dateRecovered: null },
+            { id: 'c2', accountNumber: 'AUH-001', companyName: 'Aldar Developments', emirate: 'Abu Dhabi', area: 'Yas Island', status: 'Active', paymentStatus: 'Overdue', outstandingAmount: 120000, recoveredAmount: 0, salesConsultant: 'Fatima Al-Hashemi', notes: [], scheduledVisits: [new Date().toISOString().split('T')[0], new Date(Date.now() + 86400000 * 10).toISOString().split('T')[0]], dateAdded: '2024-02-20T11:00:00Z', dateRecovered: null },
+            { id: 'c3', accountNumber: 'SHJ-001', companyName: 'Sharjah Investment Group', emirate: 'Sharjah', area: 'Al Majaz', status: 'On Hold', paymentStatus: 'Pending', outstandingAmount: 85000, recoveredAmount: 0, salesConsultant: 'Ahmed Al-Mansoori', notes: [], scheduledVisits: [new Date(Date.now() - 86400000 * 15).toISOString().split('T')[0]], dateAdded: '2024-03-10T09:00:00Z', dateRecovered: null },
+            { id: 'c4', accountNumber: 'DXB-002', companyName: 'Global Logistics FZE', emirate: 'Dubai', area: 'Jebel Ali Freezone', status: 'Closed', paymentStatus: 'Paid', outstandingAmount: 0, recoveredAmount: 75000, salesConsultant: 'Yusuf Khan', notes: [], scheduledVisits: [], dateAdded: '2024-01-05T14:00:00Z', dateRecovered: '2024-04-18T16:00:00Z' }
+        ];
+
+        const saveData = () => localStorage.setItem('uaeCustomerRecoveryData', JSON.stringify(customers));
+        const loadData = () => { customers = JSON.parse(localStorage.getItem('uaeCustomerRecoveryData')) || sampleData; saveData(); updateDatalists(); };
+
+        const navLinks = document.querySelectorAll('.nav-link'); const pages = document.querySelectorAll('.page');
+        const showPage = (pageId) => {
+            pages.forEach(p => p.classList.remove('active'));
+            document.getElementById(`${pageId}-page`).classList.add('active');
+            navLinks.forEach(l => l.classList.toggle('active', l.getAttribute('href') === `#${pageId}`));
+            const pageRenderers = { dashboard: renderDashboard, customers: renderCustomerList, visits: renderVisitsPage, analytics: renderAnalyticsPage };
+            if (pageRenderers[pageId]) pageRenderers[pageId]();
+        };
+        navLinks.forEach(l => l.addEventListener('click', (e) => { e.preventDefault(); showPage(e.currentTarget.getAttribute('href').substring(1)); }));
+        
+        const customerModal = document.getElementById('customerModal'); 
+        const detailModal = document.getElementById('customerDetailModal'); 
+        const scheduleModal = document.getElementById('scheduleVisitModal');
+        const bulkAddModal = document.getElementById('bulkAddModal');
+        const openModal = (modal) => modal.classList.add('active'); const closeModal = (modal) => modal.classList.remove('active');
+        [customerModal, detailModal, scheduleModal, bulkAddModal].forEach(modal => {
+            modal.querySelectorAll('.close-btn').forEach(btn => btn.addEventListener('click', () => closeModal(modal)));
+            modal.addEventListener('click', e => { if (e.target === modal) closeModal(modal); });
+        });
+
+        const formatCurrency = (amount) => `AED ${amount.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,')}`;
+        const formatDate = (dateString) => dateString ? new Date(dateString.replace(/-/g, '/')).toLocaleDateString() : 'N/A';
+        const generateId = () => 'c' + Date.now();
+        const destroyChart = (chartId) => { if (chartInstances[chartId]) chartInstances[chartId].destroy(); };
+
+        Chart.defaults.font.family = "'Inter', sans-serif"; Chart.defaults.color = '#334155'; Chart.defaults.borderColor = '#e2e8f0';
+
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            const icon = type === 'success' ? 'fa-check-circle' : 'fa-times-circle';
+            toast.innerHTML = `<i class="fas ${icon} toast-icon"></i><div class="toast-message">${message}</div>`;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 4500);
+        }
+
+        function calculatePriorityScore(customer) {
+            if (customer.status !== 'Active') return 0;
+            let score = customer.outstandingAmount / 10000;
+            if (customer.paymentStatus === 'Overdue') score *= 2.0;
+            if (customer.paymentStatus === 'Pending') score *= 1.5;
+            return Math.round(score);
+        }
+
+        function renderDashboard() {
+            document.getElementById('total-customers-stat').textContent = customers.length;
+            document.getElementById('total-outstanding-stat').textContent = formatCurrency(customers.reduce((s, c) => s + c.outstandingAmount, 0));
+            document.getElementById('active-accounts-stat').textContent = customers.filter(c => c.status === 'Active').length;
+            const thisMonthStart = new Date(); thisMonthStart.setDate(1); thisMonthStart.setHours(0,0,0,0);
+            document.getElementById('visits-month-stat').textContent = customers.reduce((count, c) => count + c.scheduledVisits.filter(v => new Date(v) >= thisMonthStart).length, 0);
+            
+            destroyChart('outstandingByEmirateChart');
+            const emirateData = customers.reduce((acc, c) => { acc[c.emirate] = (acc[c.emirate] || 0) + c.outstandingAmount; return acc; }, {});
+            chartInstances['outstandingByEmirateChart'] = new Chart(document.getElementById('outstandingByEmirateChart'), {
+                type: 'bar', data: { labels: Object.keys(emirateData), datasets: [{ data: Object.values(emirateData), backgroundColor: UI_COLORS.primary, borderRadius: 4 }] },
+                options: { scales: { y: { beginAtZero: true } }, plugins: { legend: { display: false } } }
+            });
+            destroyChart('customerStatusChart');
+            const statusCounts = customers.reduce((acc, c) => { acc[c.status] = (acc[c.status] || 0) + 1; return acc; }, {});
+            chartInstances['customerStatusChart'] = new Chart(document.getElementById('customerStatusChart'), {
+                type: 'doughnut', data: { labels: Object.keys(statusCounts), datasets: [{ data: Object.values(statusCounts), backgroundColor: [UI_COLORS.success, UI_COLORS.warning, '#64748b'] }] },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        }
+        
+        function renderAnalyticsPage() {
+            const totalRecovered = customers.reduce((s, c) => s + c.recoveredAmount, 0); const totalOutstanding = customers.reduce((s, c) => s + c.outstandingAmount, 0);
+            const totalValue = totalRecovered + totalOutstanding; const recoveryRate = totalValue > 0 ? (totalRecovered / totalValue) * 100 : 0;
+            const consultantPerf = customers.reduce((acc, c) => { acc[c.salesConsultant] = (acc[c.salesConsultant] || 0) + c.recoveredAmount; return acc; }, {});
+            const topConsultant = Object.keys(consultantPerf).length ? Object.keys(consultantPerf).reduce((a, b) => consultantPerf[a] > consultantPerf[b] ? a : b) : 'N/A';
+            document.getElementById('total-recovered-stat').textContent = formatCurrency(totalRecovered);
+            document.getElementById('recovery-rate-stat').textContent = `${recoveryRate.toFixed(1)}%`; document.getElementById('top-consultant-stat').textContent = topConsultant;
+
+            const months = Array.from({length: 12}, (_, i) => new Date(0, i).toLocaleString('default', {month: 'short'}));
+            const recoveryByMonth = months.reduce((acc, m) => ({...acc, [m]: 0}), {}); const outstandingByMonth = months.reduce((acc, m) => ({...acc, [m]: 0}), {});
+            customers.forEach(c => {
+                if (c.dateRecovered) { const month = new Date(c.dateRecovered).toLocaleString('default', { month: 'short' }); if(recoveryByMonth[month] !== undefined) recoveryByMonth[month] += c.recoveredAmount; }
+                const month = new Date(c.dateAdded).toLocaleString('default', { month: 'short' }); if(outstandingByMonth[month] !== undefined) outstandingByMonth[month] += c.outstandingAmount + c.recoveredAmount;
+            });
+            
+            destroyChart('recoveryPerformanceChart');
+            chartInstances['recoveryPerformanceChart'] = new Chart(document.getElementById('recoveryPerformanceChart'), { type: 'bar', data: { labels: months, datasets: [{ label: 'Total Value Added', data: Object.values(outstandingByMonth), backgroundColor: UI_COLORS.danger, borderRadius: 4 }, { label: 'Recovered', data: Object.values(recoveryByMonth), backgroundColor: UI_COLORS.success, borderRadius: 4 }] }, options: { scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } } } });
+            
+            destroyChart('paymentStatusChart');
+            const paymentStatusCounts = customers.reduce((acc, c) => { acc[c.paymentStatus] = (acc[c.paymentStatus] || 0) + 1; return acc; }, {});
+            chartInstances['paymentStatusChart'] = new Chart(document.getElementById('paymentStatusChart'), { 
+                type: 'bar', 
+                data: { 
+                    labels: Object.keys(paymentStatusCounts), 
+                    datasets: [{ 
+                        label: '# of Customers',
+                        data: Object.values(paymentStatusCounts), 
+                        backgroundColor: [UI_COLORS.success, UI_COLORS.warning, UI_COLORS.danger],
+                        borderRadius: 4
+                    }] 
+                },
+                options: {
+                    indexAxis: 'y',
+                    scales: { x: { beginAtZero: true, ticks: { precision: 0 } } },
+                    plugins: { legend: { display: false } }
+                }
+            });
+            
+            destroyChart('consultantWorkloadChart');
+            const workload = customers.reduce((acc, c) => { if(c.outstandingAmount > 0) acc[c.salesConsultant] = (acc[c.salesConsultant] || 0) + c.outstandingAmount; return acc; }, {});
+            chartInstances['consultantWorkloadChart'] = new Chart(document.getElementById('consultantWorkloadChart'), { type: 'bar', data: { labels: Object.keys(workload), datasets: [{ label: 'Outstanding Amount', data: Object.values(workload), backgroundColor: UI_COLORS.info, borderRadius: 4 }] }, options: { indexAxis: 'y', scales: { x: { beginAtZero: true } }, plugins: { legend: { display: false } } } });
+        }
+        
+        const customerTableBody = document.getElementById('customer-table-body'); const searchInput = document.getElementById('search-input'); const statusFilter = document.getElementById('status-filter');
+        function renderCustomerList() {
+            const searchTerm = searchInput.value.toLowerCase(); const status = statusFilter.value;
+            let filtered = customers.map(c => ({...c, priorityScore: calculatePriorityScore(c)}))
+                .filter(c => (c.companyName.toLowerCase().includes(searchTerm) || c.emirate.toLowerCase().includes(searchTerm) || c.accountNumber.toLowerCase().includes(searchTerm)) && 
+                               (status ? (status === 'Priority' ? c.priorityScore > 15 : c.status === status) : true));
+            
+            filtered.sort((a, b) => {
+                const valA = a[sortConfig.key]; const valB = b[sortConfig.key];
+                let comparison = 0; if (valA > valB) comparison = 1; else if (valA < valB) comparison = -1;
+                return sortConfig.direction === 'desc' ? comparison * -1 : comparison;
+            });
+            
+            document.querySelectorAll('.customer-table th').forEach(th => {
+                const icon = th.querySelector('.sort-icon'); if (!icon) return;
+                if (th.dataset.sort === sortConfig.key) icon.className = sortConfig.direction === 'asc' ? 'fas fa-sort-up sort-icon' : 'fas fa-sort-down sort-icon';
+                else icon.className = 'fas fa-sort sort-icon';
+            });
+
+            customerTableBody.innerHTML = filtered.length ? filtered.map(c => {
+                const score = c.priorityScore;
+                let priorityClass = 'low'; let priorityText = 'Low';
+                if (score > 25) { priorityClass = 'high'; priorityText = 'High'; } else if (score > 15) { priorityClass = 'medium'; priorityText = 'Medium'; }
+                return `
+                <tr data-id="${c.id}">
+                    <td>${c.accountNumber}</td><td>${c.companyName}</td><td>${c.emirate}</td>
+                    <td>${formatCurrency(c.outstandingAmount)}</td>
+                    <td><span class="priority-badge priority-${priorityClass}">${priorityText}</span></td>
+                    <td><span class="status-badge status-${c.status.toLowerCase().replace(' ', '-')}">${c.status}</span></td>
+                    <td class="action-buttons">
+                        <button class="action-btn view-btn" title="View Details"><i class="fas fa-eye"></i></button>
+                        <button class="action-btn edit-btn" title="Edit Customer"><i class="fas fa-pencil-alt"></i></button>
+                        <button class="action-btn schedule-btn" title="Schedule Visit"><i class="fas fa-calendar-plus"></i></button>
+                        <button class="action-btn delete-btn admin-only" title="Delete Customer"><i class="fas fa-trash"></i></button>
+                    </td>
+                </tr>`}).join('') : `<tr><td colspan="7"><div class="empty-state"><i class="fas fa-folder-open"></i>No customers found matching your criteria.</div></td></tr>`;
+        }
+        document.querySelectorAll('.customer-table th[data-sort]').forEach(header => {
+            header.addEventListener('click', () => {
+                const key = header.dataset.sort;
+                if (sortConfig.key === key) sortConfig.direction = sortConfig.direction === 'asc' ? 'desc' : 'asc';
+                else { sortConfig.key = key; sortConfig.direction = 'asc'; }
+                renderCustomerList();
+            });
+        });
+        customerTableBody.addEventListener('click', e => {
+            const btn = e.target.closest('button.action-btn'); if (!btn) return;
+            const id = e.target.closest('tr').dataset.id;
+            if (btn.classList.contains('view-btn')) openDetailModal(id);
+            if (btn.classList.contains('edit-btn')) openCustomerForm(id);
+            if (btn.classList.contains('schedule-btn')) openScheduleModal(id);
+            if (btn.classList.contains('delete-btn')) {
+                if (confirm('Are you sure you want to permanently delete this customer?')) {
+                    customers = customers.filter(c => c.id !== id);
+                    saveData(); renderCustomerList(); showToast('Customer deleted successfully.', 'error');
+                }
+            }
+        });
+        [searchInput, statusFilter].forEach(el => el.addEventListener('input', renderCustomerList));
+        
+        function updateDatalists() {
+            const emirates = [...new Set(customers.map(c => c.emirate))];
+            const consultants = [...new Set(customers.map(c => c.salesConsultant))];
+            document.getElementById('emirates-list').innerHTML = emirates.map(e => `<option value="${e}"></option>`).join('');
+            document.getElementById('consultants-list').innerHTML = consultants.map(c => `<option value="${c}"></option>`).join('');
+        }
+
+        const customerForm = document.getElementById('customer-form');
+        document.getElementById('add-customer-btn').addEventListener('click', () => openCustomerForm());
+        function openCustomerForm(id = null) {
+            customerForm.reset(); document.getElementById('customer-id').value = id || '';
+            if (id) {
+                const c = customers.find(c => c.id === id);
+                document.getElementById('modal-title').textContent = 'Edit Customer';
+                ['accountNumber', 'companyName', 'emirate', 'area', 'status', 'paymentStatus', 'outstandingAmount', 'salesConsultant'].forEach(key => {
+                    const el = document.getElementById(key.replace(/([A-Z])/g, "-$1").toLowerCase());
+                    if(el) el.value = c[key];
+                });
+            } else { document.getElementById('modal-title').textContent = 'Add New Customer';}
+            openModal(customerModal);
+        }
+        customerForm.addEventListener('submit', e => {
+            e.preventDefault(); const id = document.getElementById('customer-id').value;
+            let data = {
+                accountNumber: document.getElementById('account-number').value, companyName: document.getElementById('company-name').value,
+                emirate: document.getElementById('emirate').value, area: document.getElementById('area').value,
+                status: document.getElementById('status').value, paymentStatus: document.getElementById('payment-status').value,
+                outstandingAmount: parseFloat(document.getElementById('outstanding-amount').value),
+                salesConsultant: document.getElementById('sales-consultant').value
+            };
+            if (id) {
+                const index = customers.findIndex(c => c.id === id); const original = customers[index];
+                if (data.status === 'Closed' && data.paymentStatus === 'Paid' && original.outstandingAmount > 0) {
+                    data.recoveredAmount = (original.recoveredAmount || 0) + original.outstandingAmount;
+                    data.outstandingAmount = 0; data.dateRecovered = new Date().toISOString();
+                }
+                customers[index] = { ...original, ...data };
+            } else { customers.push({ ...data, id: generateId(), notes: [], scheduledVisits: [], dateAdded: new Date().toISOString(), recoveredAmount: 0, dateRecovered: null }); }
+            saveData(); renderCustomerList(); closeModal(customerModal); showToast('Customer saved successfully!'); updateDatalists();
+        });
+        
+        document.getElementById('bulk-add-btn').addEventListener('click', () => openModal(bulkAddModal));
+        
+        document.getElementById('download-sample-csv').addEventListener('click', (e) => {
+            e.preventDefault();
+            const headers = "accountNumber,companyName,emirate,area,status,paymentStatus,outstandingAmount,salesConsultant";
+            const sampleRow = "AUH-002,Test Corp,Abu Dhabi,Mussafah,Active,Pending,50000,Fatima Al-Hashemi";
+            const csvContent = "data:text/csv;charset=utf-8," + headers + "\n" + sampleRow;
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "template.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        });
+
+        document.getElementById('bulk-add-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const fileInput = document.getElementById('csv-file-input');
+            const file = fileInput.files[0];
+            if (!file) {
+                showToast("Please select a file to upload.", "error");
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const text = event.target.result;
+                const rows = text.split(/\r?\n/).filter(row => row.trim() !== '');
+                const headerRow = rows.shift().trim();
+                const expectedHeaders = "accountNumber,companyName,emirate,area,status,paymentStatus,outstandingAmount,salesConsultant";
+                
+                if (headerRow !== expectedHeaders) {
+                    showToast("CSV headers do not match the template.", "error");
+                    return;
+                }
+
+                let addedCount = 0;
+                rows.forEach(row => {
+                    try {
+                        const cols = row.split(',');
+                        if (cols.length !== 8) throw new Error("Incorrect column count");
+                        const newCustomer = {
+                            accountNumber: cols[0].trim(),
+                            companyName: cols[1].trim(),
+                            emirate: cols[2].trim(),
+                            area: cols[3].trim(),
+                            status: cols[4].trim(),
+                            paymentStatus: cols[5].trim(),
+                            outstandingAmount: parseFloat(cols[6]),
+                            salesConsultant: cols[7].trim(),
+                            id: generateId(),
+                            notes: [], scheduledVisits: [], dateAdded: new Date().toISOString(), recoveredAmount: 0, dateRecovered: null
+                        };
+                        customers.push(newCustomer);
+                        addedCount++;
+                    } catch (err) {
+                        console.error("Error parsing row: ", row, err);
+                    }
+                });
+
+                if (addedCount > 0) {
+                    saveData();
+                    renderCustomerList();
+                    updateDatalists();
+                    showToast(`Successfully added ${addedCount} new customers.`, "success");
+                }
+                closeModal(bulkAddModal);
+                fileInput.value = '';
+            };
+            reader.readAsText(file);
+        });
+        
+        function openDetailModal(id) {
+            currentEditingId = id; const c = customers.find(c => c.id === id);
+            document.getElementById('detail-modal-title').textContent = c.companyName;
+            document.getElementById('detail-account-number').textContent = c.accountNumber; document.getElementById('detail-location').textContent = `${c.area}, ${c.emirate}`;
+            document.getElementById('detail-status').innerHTML = `<span class="status-badge status-${c.status.toLowerCase().replace(' ', '-')}">${c.status}</span>`;
+            document.getElementById('detail-payment-status').innerHTML = `<span class="payment-${c.paymentStatus.toLowerCase()}">${c.paymentStatus}</span>`;
+            document.getElementById('detail-outstanding').textContent = formatCurrency(c.outstandingAmount); document.getElementById('detail-consultant').textContent = c.salesConsultant;
+            renderNotesHistory(c);
+            if (!noteEditor) noteEditor = new Quill('#note-editor-container', { theme: 'snow', placeholder: 'Enter visit notes...' });
+            noteEditor.setContents([]); document.getElementById('scheduled-visit-date').value = ''; openModal(detailModal);
+        }
+        function renderNotesHistory(c) {
+            const container = document.getElementById('notes-history');
+            container.innerHTML = c.notes.length ? [...c.notes].reverse().map(note => `<div class="note-item"><div class="note-meta">Added on: ${new Date(note.timestamp).toLocaleString()}</div><div class="note-content">${note.text}</div></div>`).join('') : '<p>No notes for this customer yet.</p>';
+        }
+        document.getElementById('save-note-btn').addEventListener('click', () => {
+            const customer = customers.find(c => c.id === currentEditingId);
+            if (noteEditor.getLength() > 1) customer.notes.push({ timestamp: new Date().toISOString(), text: noteEditor.root.innerHTML });
+            const visitDate = document.getElementById('scheduled-visit-date').value;
+            if (visitDate) customer.scheduledVisits.push(visitDate);
+            saveData(); renderNotesHistory(customer); noteEditor.setContents([]); document.getElementById('scheduled-visit-date').value = '';
+            showToast('Note and schedule updated.');
+        });
+        
+        function openScheduleModal(id) {
+            const customer = customers.find(c => c.id === id);
+            document.getElementById('schedule-modal-title').textContent = `Schedule Visit for ${customer.companyName}`;
+            document.getElementById('schedule-customer-id').value = id;
+            document.getElementById('schedule-visit-form').reset();
+            openModal(scheduleModal);
+        }
+
+        document.getElementById('schedule-visit-form').addEventListener('submit', e => {
+            e.preventDefault();
+            const customerId = document.getElementById('schedule-customer-id').value;
+            const visitDate = document.getElementById('quick-schedule-date').value;
+            const visitNotes = document.getElementById('quick-visit-notes').value.trim();
+            const customer = customers.find(c => c.id === customerId);
+            
+            customer.scheduledVisits.push(visitDate);
+
+            if (visitNotes) {
+                const noteText = `<strong>Note for visit on ${formatDate(visitDate)}:</strong><br>${visitNotes.replace(/\n/g, '<br>')}`;
+                customer.notes.push({ timestamp: new Date().toISOString(), text: noteText });
+            }
+
+            saveData(); showToast(`Visit scheduled for ${customer.companyName}`);
+            closeModal(scheduleModal);
+            if(document.getElementById('visits-page').classList.contains('active')) renderVisitsPage();
+        });
+
+        function renderVisitsPage() {
+            if(calendar) calendar.destroy();
+            const events = customers.flatMap(c => c.scheduledVisits.map(v => ({ title: c.companyName, start: v, allDay: true, extendedProps: { customerId: c.id } })));
+            calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
+                initialView: 'dayGridMonth',
+                headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,listWeek' },
+                events,
+                eventClick: info => openDetailModal(info.event.extendedProps.customerId)
+            });
+            calendar.render();
+            
+            const quickFilterButtons = document.querySelectorAll('.quick-filters .btn');
+            quickFilterButtons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    quickFilterButtons.forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    currentVisitFilter = btn.dataset.filter;
+                    document.getElementById('visit-start-date').value = '';
+                    document.getElementById('visit-end-date').value = '';
+                    renderVisitList();
+                });
+            });
+
+            document.getElementById('apply-date-filter-btn').addEventListener('click', () => {
+                quickFilterButtons.forEach(b => b.classList.remove('active'));
+                currentVisitFilter = 'range';
+                renderVisitList();
+            });
+
+            renderVisitList();
+        }
+
+        function renderVisitList() {
+            const listTitle = document.getElementById('visit-list-title');
+            const visitListBody = document.getElementById('visit-list-body');
+            const startDateVal = document.getElementById('visit-start-date').value;
+            const endDateVal = document.getElementById('visit-end-date').value;
+
+            const allVisits = customers.flatMap(c => 
+                c.scheduledVisits.map(v => ({ 
+                    date: v, companyName: c.companyName, emirate: c.emirate, 
+                    salesConsultant: c.salesConsultant, customerId: c.id 
+                }))
+            );
+
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            let filteredVisits = [];
+
+            if (currentVisitFilter === 'range' && startDateVal && endDateVal) {
+                listTitle.textContent = 'Visits by Date Range';
+                const start = new Date(startDateVal.replace(/-/g, '/'));
+                const end = new Date(endDateVal.replace(/-/g, '/'));
+                start.setHours(0, 0, 0, 0);
+                end.setHours(23, 59, 59, 999);
+                filteredVisits = allVisits.filter(v => {
+                    const visitDate = new Date(v.date.replace(/-/g, '/'));
+                    return visitDate >= start && visitDate <= end;
+                });
+            } else {
+                switch (currentVisitFilter) {
+                    case 'overdue':
+                        listTitle.textContent = 'Overdue Visits';
+                        filteredVisits = allVisits.filter(v => new Date(v.date.replace(/-/g, '/')) < today);
+                        break;
+                    case 'today':
+                        listTitle.textContent = "Today's Visits";
+                        filteredVisits = allVisits.filter(v => new Date(v.date.replace(/-/g, '/')).getTime() === today.getTime());
+                        break;
+                    case 'upcoming':
+                        listTitle.textContent = 'Upcoming Visits';
+                        filteredVisits = allVisits.filter(v => new Date(v.date.replace(/-/g, '/')) >= today);
+                        break;
+                    case 'all':
+                    default:
+                        listTitle.textContent = 'All Scheduled Visits';
+                        filteredVisits = allVisits;
+                        break;
+                }
+            }
+
+            filteredVisits.sort((a, b) => new Date(a.date.replace(/-/g, '/')) - new Date(b.date.replace(/-/g, '/')));
+
+            visitListBody.innerHTML = filteredVisits.length ? filteredVisits.map(v => {
+                const visitDate = new Date(v.date.replace(/-/g, '/'));
+                let rowClass = '';
+                if (visitDate < today) rowClass = 'overdue';
+                else if (visitDate.getTime() === today.getTime()) rowClass = 'today';
+
+                return `<tr class="visit-row ${rowClass}" data-id="${v.customerId}">
+                            <td>${formatDate(v.date)}</td><td>${v.companyName}</td><td>${v.emirate}</td>
+                            <td>${v.salesConsultant}</td>
+                            <td class="action-buttons"><button class="action-btn view-btn" title="View Customer"><i class="fas fa-eye"></i></button></td>
+                        </tr>`;
+            }).join('') : `<tr><td colspan="5"><div class="empty-state"><i class="fas fa-calendar-times"></i>No visits match the current filter.</div></td></tr>`;
+        }
+        document.getElementById('visit-list-body').addEventListener('click', e => { if (e.target.closest('button.view-btn')) openDetailModal(e.target.closest('tr').dataset.id); });
+
+        const exportCsvBtn = document.getElementById('export-csv-btn'); const exportPdfBtn = document.getElementById('export-pdf-btn'); let lastReportData = [];
+        document.getElementById('generate-report-btn').addEventListener('click', () => {
+            const status = document.getElementById('report-status-filter').value; const paymentStatus = document.getElementById('report-payment-status-filter').value; const consultant = document.getElementById('report-consultant-filter').value.toLowerCase();
+            lastReportData = customers.filter(c => (status ? c.status === status : true) && (paymentStatus ? c.paymentStatus === paymentStatus : true) && (consultant ? c.salesConsultant.toLowerCase().includes(consultant) : true));
+            renderReportTable(lastReportData);
+        });
+        function renderReportTable(data) {
+            const output = document.getElementById('report-output'); const showButtons = data.length > 0;
+            exportCsvBtn.style.display = exportPdfBtn.style.display = showButtons ? 'inline-block' : 'none';
+            output.innerHTML = showButtons ? `<table class="customer-table"><thead><tr><th>Account #</th><th>Company</th><th>Emirate</th><th>Sales Consultant</th><th>Status</th><th>Outstanding</th></tr></thead><tbody>${data.map(c => `<tr><td>${c.accountNumber}</td><td>${c.companyName}</td><td>${c.emirate}</td><td>${c.salesConsultant}</td><td>${c.status}</td><td>${formatCurrency(c.outstandingAmount)}</td></tr>`).join('')}</tbody></table>` : '<p>No matching records found.</p>';
+        }
+        exportCsvBtn.addEventListener('click', () => {
+            let csv = 'AccountNumber,CompanyName,Emirate,SalesConsultant,Status,PaymentStatus,OutstandingAmount\n';
+            lastReportData.forEach(c => csv += `${c.accountNumber},"${c.companyName}",${c.emirate},${c.salesConsultant},${c.status},${c.paymentStatus},${c.outstandingAmount}\n`);
+            const link = document.createElement('a'); link.href = 'data:text/csv;charset=utf-8,' + encodeURI(csv);
+            link.download = 'customer_report.csv'; link.click();
+        });
+        exportPdfBtn.addEventListener('click', () => {
+            const { jsPDF } = window.jspdf; const doc = new jsPDF();
+            doc.autoTable({ head: [['Account #', 'Company', 'Emirate', 'Sales Consultant', 'Status', 'Outstanding']], body: lastReportData.map(c => [c.accountNumber, c.companyName, c.emirate, c.salesConsultant, c.status, formatCurrency(c.outstandingAmount)]) });
+            doc.save('customer_report.pdf');
+        });
+
+        document.getElementById('user-mode-switch').addEventListener('change', function() {
+            document.body.classList.toggle('user-mode-active', !this.checked);
+            const activePage = document.querySelector('.page.active').id.replace('-page', '');
+            if (!this.checked && activePage === 'analytics') showPage('dashboard');
+            else showPage(activePage);
+        });
+
+        loadData(); showPage('dashboard');
+    });
+    </script>
+    <script>
+// Set API base (localhost in dev, Render in prod)
+window.API_BASE = (location.hostname === 'localhost')
+? 'http://localhost:8080'
+: 'https://YOUR-RENDER-SERVICE.onrender.com'
+</script>
+<script type="module" src="./api.js"></script>
+</body>
+</html>
